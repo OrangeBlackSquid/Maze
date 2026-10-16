@@ -38,20 +38,6 @@ let cellSize = 0, offsetX = 0, offsetY = 0;
 let generating = false, solving = false;
 let animToken = null;
 let placeMode = null, drawMode = false, lastDrawCell = null, drawing = false;
-let colorBuf = null, imageData = null;
-
-const PALETTE = [
-  [13, 16, 20, 255],
-  [45, 27, 78, 255],
-  [76, 29, 149, 255],
-  [252, 192, 42, 255],
-  [192, 132, 252, 255],
-  [59, 130, 246, 255],
-  [30, 64, 175, 255],
-  [252, 192, 42, 255],
-  [94, 207, 122, 255],
-  [59, 130, 246, 255]
-];
 
 function clampSize(v) {
   var n = parseInt(v, 10);
@@ -123,12 +109,10 @@ function resize() {
       h = parent.clientHeight;
     }
   }
-
   if (w < 10 || h < 10) {
     w = window.innerWidth - 40;
     h = window.innerHeight - 200;
   }
-
   if (w < 10 || h < 10) return false;
 
   W = w;
@@ -137,8 +121,6 @@ function resize() {
   canvas.width = Math.round(W * DPR);
   canvas.height = Math.round(H * DPR);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  imageData = ctx.createImageData(canvas.width, canvas.height);
-  colorBuf = imageData.data;
   updateLayout();
   draw();
   return true;
@@ -156,87 +138,63 @@ function updateLayout() {
   offsetY = (H - cellSize * rows) / 2;
 }
 
-function paintColor(x0, y0, x1, y1, r, g, b, a) {
-  var dw = canvas.width;
-  var dh = canvas.height;
-  if (x1 <= 0 || y1 <= 0 || x0 >= W || y0 >= H) return;
-  var px0 = Math.max(0, Math.floor(x0 * DPR));
-  var py0 = Math.max(0, Math.floor(y0 * DPR));
-  var px1 = Math.min(dw, Math.ceil(x1 * DPR));
-  var py1 = Math.min(dh, Math.ceil(y1 * DPR));
-  for (var py = py0; py < py1; py++) {
-    var o = (py * dw + px0) * 4;
-    for (var px = px0; px < px1; px++) {
-      colorBuf[o] = r;
-      colorBuf[o + 1] = g;
-      colorBuf[o + 2] = b;
-      colorBuf[o + 3] = a;
-      o += 4;
-    }
-  }
-}
-
-function paintAll(r, g, b, a) {
-  var total = canvas.width * canvas.height * 4;
-  for (var i = 0; i < total; i += 4) {
-    colorBuf[i] = r;
-    colorBuf[i + 1] = g;
-    colorBuf[i + 2] = b;
-    colorBuf[i + 3] = a;
-  }
-}
-
 function colorFor(c, s) {
-  if (s & 0x08) return PALETTE[8];
-  if (s & 0x10) return PALETTE[9];
-  if (s & 0x02) return PALETTE[7];
-  if (s & 0x04) return PALETTE[6];
-  if (s & 0x01) return PALETTE[5];
-  if (c & 0x20) return PALETTE[3];
-  if (c & 0x80) return PALETTE[4];
-  if (c & 0x40) return PALETTE[2];
-  if (c & 0x10) return PALETTE[1];
+  if (s & 0x08) return '#5ecf7a';
+  if (s & 0x10) return '#3b82f6';
+  if (s & 0x02) return '#fcc02a';
+  if (s & 0x04) return '#1e40af';
+  if (s & 0x01) return '#3b82f6';
+  if (c & 0x20) return '#fcc02a';
+  if (c & 0x80) return '#c084fc';
+  if (c & 0x40) return '#4c1d95';
+  if (c & 0x10) return '#2d1b4e';
   return null;
 }
 
 function draw() {
-  if (!maze || !colorBuf) return;
+  if (!maze) return;
   var rows = maze.rows();
   var cols = maze.cols();
   var cs = cellSize;
   var ox = offsetX;
   var oy = offsetY;
-  paintAll(13, 16, 20, 255);
+
+  ctx.fillStyle = '#0d1014';
+  ctx.fillRect(0, 0, W, H);
+
   var cells = maze.get_cells();
   var solve = maze.get_solve();
   var fillPad = cs >= 2 ? 1 : 0;
+  var fillSize = cs - fillPad;
+
   for (var y = 0; y < rows; y++) {
     var cy0 = oy + y * cs;
-    var cy1 = cy0 + cs - fillPad;
     for (var x = 0; x < cols; x++) {
       var i = y * cols + x;
       var col = colorFor(cells[i], solve[i]);
       if (!col) continue;
-      paintColor(ox + x * cs, cy0, ox + x * cs + cs - fillPad, cy1, col[0], col[1], col[2], col[3]);
+      ctx.fillStyle = col;
+      ctx.fillRect(ox + x * cs, cy0, fillSize, fillSize);
     }
   }
+
   if (cs >= 1.5) {
     var wl = Math.max(1, Math.min(2.5, cs * 0.14));
-    var wl2 = Math.max(1, Math.ceil(wl * DPR));
-    var wlPx = wl2 / DPR;
+    ctx.fillStyle = '#e8ebee';
     for (var y2 = 0; y2 < rows; y2++) {
       for (var x2 = 0; x2 < cols; x2++) {
         var ii = y2 * cols + x2;
         var cc = cells[ii];
         var cx = ox + x2 * cs;
         var cy = oy + y2 * cs;
-        if (cc & 0x01) paintColor(cx, cy, cx + cs, cy + wlPx, 232, 235, 238, 255);
-        if (cc & 0x08) paintColor(cx, cy, cx + wlPx, cy + cs, 232, 235, 238, 255);
-        if (y2 === rows - 1 && (cc & 0x04)) paintColor(cx, cy + cs - wlPx, cx + cs, cy + cs, 232, 235, 238, 255);
-        if (x2 === cols - 1 && (cc & 0x02)) paintColor(cx + cs - wlPx, cy, cx + cs, cy + cs, 232, 235, 238, 255);
+        if (cc & 0x01) ctx.fillRect(cx, cy, cs, wl);
+        if (cc & 0x08) ctx.fillRect(cx, cy, wl, cs);
+        if (y2 === rows - 1 && (cc & 0x04)) ctx.fillRect(cx, cy + cs - wl, cs, wl);
+        if (x2 === cols - 1 && (cc & 0x02)) ctx.fillRect(cx + cs - wl, cy, wl, cs);
       }
     }
   }
+
   var sIdx = maze.start();
   var gIdx = maze.goal();
   var sx = ox + (sIdx % cols) * cs + cs / 2;
@@ -244,34 +202,16 @@ function draw() {
   var gx = ox + (gIdx % cols) * cs + cs / 2;
   var gy = oy + Math.floor(gIdx / cols) * cs + cs / 2;
   var mr = Math.max(3, Math.min(cs * 0.28, 12));
-  var mrPx = Math.round(mr * DPR);
-  for (var dy = -mrPx; dy <= mrPx; dy++) {
-    for (var dx = -mrPx; dx <= mrPx; dx++) {
-      if (dx * dx + dy * dy > mrPx * mrPx) continue;
-      var ppx = Math.round(sx * DPR) + dx;
-      var ppy = Math.round(sy * DPR) + dy;
-      if (ppx < 0 || ppy < 0 || ppx >= canvas.width || ppy >= canvas.height) continue;
-      var oo = (ppy * canvas.width + ppx) * 4;
-      colorBuf[oo] = 52;
-      colorBuf[oo + 1] = 211;
-      colorBuf[oo + 2] = 153;
-      colorBuf[oo + 3] = 255;
-    }
-  }
-  for (var dy2 = -mrPx; dy2 <= mrPx; dy2++) {
-    for (var dx2 = -mrPx; dx2 <= mrPx; dx2++) {
-      if (dx2 * dx2 + dy2 * dy2 > mrPx * mrPx) continue;
-      var ppx2 = Math.round(gx * DPR) + dx2;
-      var ppy2 = Math.round(gy * DPR) + dy2;
-      if (ppx2 < 0 || ppy2 < 0 || ppx2 >= canvas.width || ppy2 >= canvas.height) continue;
-      var oo2 = (ppy2 * canvas.width + ppx2) * 4;
-      colorBuf[oo2] = 248;
-      colorBuf[oo2 + 1] = 113;
-      colorBuf[oo2 + 2] = 113;
-      colorBuf[oo2 + 3] = 255;
-    }
-  }
-  ctx.putImageData(imageData, 0, 0);
+
+  ctx.fillStyle = '#34d399';
+  ctx.beginPath();
+  ctx.arc(sx, sy, mr, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#f87171';
+  ctx.beginPath();
+  ctx.arc(gx, gy, mr, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function delayFromSpeed(speed) {
@@ -466,13 +406,8 @@ function carveAt(cell) {
   }
 }
 
-function openOverlay() {
-  overlay.classList.remove('hidden');
-}
-
-function closeOverlay() {
-  overlay.classList.add('hidden');
-}
+function openOverlay() { overlay.classList.remove('hidden'); }
+function closeOverlay() { overlay.classList.add('hidden'); }
 
 canvas.addEventListener('pointerdown', function (e) {
   if (generating || solving || !maze) return;
@@ -521,7 +456,6 @@ closeBtn.addEventListener('click', closeOverlay);
 overlay.addEventListener('pointerdown', function (e) {
   if (e.target === overlay) closeOverlay();
 });
-
 document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape' && !overlay.classList.contains('hidden')) closeOverlay();
 });
@@ -531,33 +465,14 @@ solveBtn.addEventListener('click', runSolve);
 cancelBtn.addEventListener('click', cancelAction);
 resetBtn.addEventListener('click', resetMaze);
 
-genSpeed.addEventListener('input', function () {
-  genSpeedVal.textContent = genSpeed.value;
-  saveSettings();
-});
-
-solveSpeed.addEventListener('input', function () {
-  solveSpeedVal.textContent = solveSpeed.value;
-  saveSettings();
-});
-
+genSpeed.addEventListener('input', function () { genSpeedVal.textContent = genSpeed.value; saveSettings(); });
+solveSpeed.addEventListener('input', function () { solveSpeedVal.textContent = solveSpeed.value; saveSettings(); });
 genAlgo.addEventListener('change', saveSettings);
 solveAlgo.addEventListener('change', saveSettings);
+alwaysAnimate.addEventListener('change', function () { updateAnimateWarning(); saveSettings(); });
 
-alwaysAnimate.addEventListener('change', function () {
-  updateAnimateWarning();
-  saveSettings();
-});
-
-genRows.addEventListener('blur', function () {
-  genRows.value = clampSize(genRows.value);
-  saveSettings();
-});
-
-genCols.addEventListener('blur', function () {
-  genCols.value = clampSize(genCols.value);
-  saveSettings();
-});
+genRows.addEventListener('blur', function () { genRows.value = clampSize(genRows.value); saveSettings(); });
+genCols.addEventListener('blur', function () { genCols.value = clampSize(genCols.value); saveSettings(); });
 
 placeStartBtn.addEventListener('click', function () {
   exitDrawMode();
@@ -574,10 +489,7 @@ placeGoalBtn.addEventListener('click', function () {
 });
 
 drawBtn.addEventListener('click', function () {
-  if (drawMode) {
-    exitDrawMode();
-    return;
-  }
+  if (drawMode) { exitDrawMode(); return; }
   placeMode = null;
   drawMode = true;
   lastDrawCell = null;
@@ -611,10 +523,7 @@ fileInput.addEventListener('change', async function (e) {
 });
 
 exportBtn.addEventListener('click', function () {
-  if (!maze) {
-    showTempHint('import-error', 'nothing to export');
-    return;
-  }
+  if (!maze) { showTempHint('import-error', 'nothing to export'); return; }
   var data = maze.export_state();
   var blob = new Blob([data], { type: 'application/octet-stream' });
   var url = URL.createObjectURL(blob);
@@ -628,13 +537,8 @@ exportBtn.addEventListener('click', function () {
   showTempHint('import-ok', 'exported');
 });
 
-window.addEventListener('resize', function () {
-  resize();
-});
-
-window.addEventListener('orientationchange', function () {
-  setTimeout(resize, 200);
-});
+window.addEventListener('resize', function () { resize(); });
+window.addEventListener('orientationchange', function () { setTimeout(resize, 200); });
 
 async function boot() {
   await init();
@@ -642,11 +546,7 @@ async function boot() {
   var cols = clampSize(genCols.value);
   maze = new Maze(rows, cols);
   loadSettings();
-
-  // Sofort versuchen
   resize();
-
-  // Und noch mal beim nächsten Frame, wenn das Layout sicher fertig ist
   requestAnimationFrame(function () {
     resize();
     setControlsEnabled(true);
