@@ -191,7 +191,7 @@ function draw() {
   }
 
   if (cs >= 1.5) {
-    var wl = Math.max(1, Math.min(2.5, cs * 0.14));
+    var wl = Math.max(0.5, Math.min(1.2, cs * 0.07));
     ctx.fillStyle = '#e8ebee';
     for (var i2 = 0; i2 < cells.length; i2++) {
       var c2 = cells[i2];
