@@ -53,21 +53,6 @@ const PALETTE = [
   [59, 130, 246, 255]
 ];
 
-function debugLog(text, color) {
-  var el = document.getElementById('__dbg');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = '__dbg';
-    el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:40vh;overflow-y:auto;padding:10px;font:11px/1.4 monospace;z-index:99999;color:#fff;background:rgba(13,16,20,0.95);border-top:2px solid #252b36;';
-    document.body.appendChild(el);
-  }
-  var line = document.createElement('div');
-  line.textContent = text;
-  line.style.color = color || '#e8ebee';
-  el.appendChild(line);
-  el.scrollTop = el.scrollHeight;
-}
-
 function clampSize(v) {
   var n = parseInt(v, 10);
   if (isNaN(n)) return 20;
@@ -631,29 +616,14 @@ window.addEventListener('orientationchange', function () {
 });
 
 async function boot() {
-  try {
-    debugLog('Boot gestartet...', '#9ca3af');
-    await init();
-    debugLog('WASM initialisiert.', '#5ecf7a');
-
-    var rows = clampSize(genRows.value);
-    var cols = clampSize(genCols.value);
-    maze = new Maze(rows, cols);
-    debugLog('Maze ' + maze.rows() + 'x' + maze.cols() + ' erstellt.', '#5ecf7a');
-
-    loadSettings();
-    resize();
-    debugLog('Resize fertig. Canvas: ' + canvas.width + 'x' + canvas.height, '#5ecf7a');
-
-    setControlsEnabled(true);
-    debugLog('Controls aktiviert. Bereit.', '#5ecf7a');
-
-    // Erstes Maze gleich generieren, damit man was sieht
-    runGenerate();
-  } catch (err) {
-    debugLog('FEHLER: ' + (err.message || err), '#f87171');
-    debugLog(err.stack || '?', '#9ca3af');
-  }
+  await init();
+  var rows = clampSize(genRows.value);
+  var cols = clampSize(genCols.value);
+  maze = new Maze(rows, cols);
+  loadSettings();
+  resize();
+  setControlsEnabled(true);
+  runGenerate();
 }
 
 boot();
