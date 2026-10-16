@@ -121,6 +121,7 @@ html, body {
   flex: 1;
   position: relative;
   min-height: 0;
+  min-width: 0;
 }
 
 #canvas {
@@ -630,76 +631,4 @@ html, body {
   .bar { gap: 4px; }
   .io-row { padding: 0 20px; gap: 8px; }
   .io-btn { padding: 11px 12px; font-size: 11px; letter-spacing: 0.8px; }
-                   }
-
-  .field-warning {
-    font-size: 10.5px;
-    color: #5c6169;
-    line-height: 1.5;
-    letter-spacing: 0.3px;
-    padding: 8px 12px;
-    background: rgba(252, 192, 42, 0.06);
-    border: 1px solid rgba(252, 192, 42, 0.18);
-    border-radius: 8px;
-    transition: opacity 0.2s ease;
-  }
-
-  .field-warning.active {
-    color: #fcc02a;
-    background: rgba(252, 192, 42, 0.1);
-    border-color: rgba(252, 192, 42, 0.3);
-  }
-
-  .toggle-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    cursor: pointer;
-    padding: 12px 14px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
-    user-select: none;
-    -webkit-user-select: none;
-    transition: border-color 0.15s ease, background 0.15s ease;
-  }
-
-  .toggle-label {
-    font-size: 13px;
-    color: #e8ebee;
-    font-weight: 600;
-    letter-spacing: 0.4px;
-  }
-
-  .toggle-box {
-    width: 22px;
-    height: 22px;
-    border-radius: 6px;
-    border: 2px solid rgba(255, 255, 255, 0.55);
-    background: transparent;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.18s;
-    flex-shrink: 0;
-  }
-
-  .toggle-box svg {
-    width: 13px;
-    height: 13px;
-    stroke: #0d1014;
-    stroke-width: 3.5;
-    fill: none;
-    opacity: 0;
-    transition: opacity 0.15s;
-  }
-
-  .toggle-row input:checked ~ .toggle-box {
-    background: #e8ebee;
-    border-color: #e8ebee;
-  }
-
-  .toggle-row input:checked ~ .toggle-box svg {
-    opacity: 1;
-  }
+}
