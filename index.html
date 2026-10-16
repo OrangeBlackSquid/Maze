@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>maze</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+  <div class="bar">
+    <button class="action-btn" id="genBtn">generate</button>
+    <button class="action-btn" id="solveBtn" disabled>solve</button>
+    <button class="action-btn cancel-btn" id="cancelBtn" disabled>cancel</button>
+    <button class="action-btn reset-btn" id="resetBtn">reset</button>
+    <button class="icon-btn" id="settingsBtn" aria-label="settings">
+      <svg viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+    </button>
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="canvas"></canvas>
+    <div class="place-hint" id="placeHint">tap to place</div>
+  </div>
+
+  <div class="io-row">
+    <button class="io-btn" id="importBtn">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+      import
+    </button>
+    <button class="io-btn" id="exportBtn">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+      export
+    </button>
+  </div>
+</div>
+
+<input type="file" id="fileInput" accept=".maze,application/octet-stream">
+
+<div class="overlay hidden" id="overlay">
+  <div class="panel">
+    <div class="panel-head">
+      <div class="panel-title">settings</div>
+      <button class="close-btn" id="closeBtn" aria-label="close">
+        <svg viewBox="0 0 24 24"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+      </button>
+    </div>
+    <div class="panel-body">
+      <div class="section">
+        <div class="section-label">generate</div>
+        <div class="field">
+          <label class="field-label" for="genAlgo">algorithm</label>
+          <select id="genAlgo">
+            <option value="0">Recursive Backtracker</option>
+            <option value="1">Randomized Prim</option>
+            <option value="2">Randomized Kruskal</option>
+            <option value="3">Wilson's</option>
+            <option value="4">Binary Tree</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label">size (1 – 1000)</label>
+          <div class="size-row">
+            <input type="number" id="genRows" value="20" min="1" max="1000" inputmode="numeric">
+            <span class="size-sep">×</span>
+            <input type="number" id="genCols" value="20" min="1" max="1000" inputmode="numeric">
+          </div>
+        </div>
+        <label class="toggle-row" for="alwaysAnimate">
+          <span class="toggle-label">always animate</span>
+          <input type="checkbox" id="alwaysAnimate">
+          <span class="toggle-box">
+            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+        </label>
+        <div class="field-warning" id="animateWarning">
+          when enabled, mazes larger than 200×200 will be animated during generation and solving — this can be very slow
+        </div>
+        <div class="field">
+          <label class="field-label">speed</label>
+          <div class="speed-row">
+            <input type="range" id="genSpeed" class="speed-slider" min="1" max="100" value="50">
+            <span class="speed-value" id="genSpeedVal">50</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">solve</div>
+        <div class="field">
+          <label class="field-label" for="solveAlgo">algorithm</label>
+          <select id="solveAlgo">
+            <option value="0">A*</option>
+            <option value="1">Wall Follower</option>
+            <option value="2">Dead-End-Filling</option>
+            <option value="3">Flood-Fill</option>
+            <option value="4">Trémaux</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="field-label">speed</label>
+          <div class="speed-row">
+            <input type="range" id="solveSpeed" class="speed-slider" min="1" max="100" value="50">
+            <span class="speed-value" id="solveSpeedVal">50</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">placement</div>
+        <div class="place-row">
+          <button class="place-btn" data-place="start" id="placeStartBtn"><span class="dot"></span><span>start</span></button>
+          <button class="place-btn" data-place="goal" id="placeGoalBtn"><span class="dot"></span><span>goal</span></button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">manual</div>
+        <button class="draw-btn" id="drawBtn">draw maze</button>
+        <div class="draw-hint">drag across cells to carve a path. lift and tap elsewhere to start a new path. reset clears everything.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="main.js"></script>
+</body>
+    </html>
