@@ -291,12 +291,8 @@ impl Maze {
 
     pub fn start_generate(&mut self, kind: u8) {
         self.clear_gen_markers();
-        for s in self.solve.iter_mut() {
-            *s = 0;
-        }
-        for c in self.cells.iter_mut() {
-            *c |= WALL_ALL;
-        }
+        for s in self.solve.iter_mut() { *s = 0; }
+        for c in self.cells.iter_mut() { *c |= WALL_ALL; }
         self.gen_kind = kind;
         self.gen_done = false;
         self.gen_stack.clear();
@@ -715,7 +711,9 @@ impl Maze {
     }
 
     fn step_astar_deadend(&mut self) {
-        if !self.solve_deadend_queue.is_empty() {
+        // --- DEAD END PART (Process a big chunk at once) ---
+        let mut processed = 0;
+        while !self.solve_deadend_queue.is_empty() && processed < 500 {
             let cell = self.solve_deadend_queue.pop().unwrap();
             if self.solve[cell as usize] & SOLVE_DEAD == 0
                 && cell != self.start
@@ -731,8 +729,10 @@ impl Maze {
                     }
                 }
             }
+            processed += 1;
         }
 
+        // --- A* PART (Process one step) ---
         if self.goal == self.start {
             self.reconstruct_path();
             self.solve_done = true;
