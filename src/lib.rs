@@ -28,6 +28,7 @@ pub const SOLVE_WALL: u8 = 1;
 pub const SOLVE_DEADEND: u8 = 2;
 pub const SOLVE_FLOOD: u8 = 3;
 pub const SOLVE_TREMAUX: u8 = 4;
+pub const SOLVE_ASTAR_DEADEND: u8 = 5;
 
 pub struct Rng {
     s: [u32; 4],
@@ -101,6 +102,7 @@ pub struct Maze {
     solve_wall_dir: u8,
     solve_wall_path: Vec<u32>,
     solve_steps: u32,
+    solve_deadend_queue: Vec<u32>,
 }
 
 #[wasm_bindgen]
@@ -139,13 +141,10 @@ impl Maze {
             solve_wall_dir: 0,
             solve_wall_path: Vec::new(),
             solve_steps: 0,
+            solve_deadend_queue: Vec::new(),
         };
         m.set_size(rows, cols);
         m
-    }
-
-    pub fn seed(&mut self, s: u64) {
-        self.rng = Rng::new(s);
     }
 
     pub fn rows(&self) -> u32 { self.rows }
@@ -204,6 +203,7 @@ impl Maze {
         self.solve_wall_path.clear();
         self.solve_wall_dir = 0;
         self.solve_steps = 0;
+        self.solve_deadend_queue.clear();
         self.gen_done = true;
         self.solve_done = true;
     }
@@ -322,9 +322,7 @@ impl Maze {
                 self.cells[s as usize] |= GEN_VISITED | GEN_CURRENT;
                 let mut ns = Vec::new();
                 for d in 0..4u8 {
-                    if let Some(n) = self.neighbor(s, d) {
-                        ns.push(n);
-                    }
+                    if let Some(n) = self.neighbor(s, d) { ns.push(n); }
                 }
                 for n in ns {
                     if self.cells[n as usize] & GEN_VISITED == 0 {
@@ -338,12 +336,8 @@ impl Maze {
                 for y in 0..self.rows {
                     for x in 0..self.cols {
                         let i = idx(x, y, self.cols);
-                        if x + 1 < self.cols {
-                            edges.push((i << 2) | 1);
-                        }
-                        if y + 1 < self.rows {
-                            edges.push((i << 2) | 2);
-                        }
+                        if x + 1 < self.cols { edges.push((i << 2) | 1); }
+                        if y + 1 < self.rows { edges.push((i << 2) | 2); }
                     }
                 }
                 for k in (1..edges.len()).rev() {
@@ -357,21 +351,15 @@ impl Maze {
             GEN_WILSON => {
                 self.gen_in_maze = vec![0; total as usize];
                 self.gen_remaining = Vec::with_capacity(total as usize);
-                for i in 0..total {
-                    self.gen_remaining.push(i);
-                }
+                for i in 0..total { self.gen_remaining.push(i); }
                 let first = self.rng.range(total);
                 self.gen_in_maze[first as usize] = 1;
                 self.cells[first as usize] |= GEN_VISITED;
                 self.gen_remaining.retain(|&x| x != first);
                 self.gen_cursor = 0;
             }
-            GEN_BINARY => {
-                self.gen_cursor = 0;
-            }
-            _ => {
-                self.gen_done = true;
-            }
+            GEN_BINARY => { self.gen_cursor = 0; }
+            _ => { self.gen_done = true; }
         }
     }
 
@@ -392,25 +380,18 @@ impl Maze {
     }
 
     fn step_dfs(&mut self) {
-        if self.gen_stack.is_empty() {
-            self.gen_done = true;
-            return;
-        }
+        if self.gen_stack.is_empty() { self.gen_done = true; return; }
         let cur = *self.gen_stack.last().unwrap();
         let mut unvisited = Vec::with_capacity(4);
         for d in 0..4u8 {
             if let Some(n) = self.neighbor(cur, d) {
-                if self.cells[n as usize] & GEN_VISITED == 0 {
-                    unvisited.push(n);
-                }
+                if self.cells[n as usize] & GEN_VISITED == 0 { unvisited.push(n); }
             }
         }
         if unvisited.is_empty() {
             self.cells[cur as usize] &= !GEN_CURRENT;
             self.gen_stack.pop();
-            if let Some(&top) = self.gen_stack.last() {
-                self.cells[top as usize] |= GEN_CURRENT;
-            }
+            if let Some(&top) = self.gen_stack.last() { self.cells[top as usize] |= GEN_CURRENT; }
         } else {
             let pick = self.rng.range(unvisited.len() as u32) as usize;
             let next = unvisited[pick];
@@ -422,34 +403,23 @@ impl Maze {
     }
 
     fn step_prim(&mut self) {
-        if self.gen_frontier.is_empty() {
-            self.gen_done = true;
-            return;
-        }
+        if self.gen_frontier.is_empty() { self.gen_done = true; return; }
         let i = self.rng.range(self.gen_frontier.len() as u32) as usize;
         let cell = self.gen_frontier.swap_remove(i);
         self.cells[cell as usize] &= !GEN_FRONTIER;
-
         let mut visited_neighbors = Vec::with_capacity(4);
         for d in 0..4u8 {
             if let Some(n) = self.neighbor(cell, d) {
-                if self.cells[n as usize] & GEN_VISITED != 0 {
-                    visited_neighbors.push(n);
-                }
+                if self.cells[n as usize] & GEN_VISITED != 0 { visited_neighbors.push(n); }
             }
         }
-        if visited_neighbors.is_empty() {
-            return;
-        }
+        if visited_neighbors.is_empty() { return; }
         let p = visited_neighbors[self.rng.range(visited_neighbors.len() as u32) as usize];
         self.remove_wall_between(p, cell);
         self.cells[cell as usize] |= GEN_VISITED;
-
         let mut new_ns = Vec::new();
         for d in 0..4u8 {
-            if let Some(n) = self.neighbor(cell, d) {
-                new_ns.push(n);
-            }
+            if let Some(n) = self.neighbor(cell, d) { new_ns.push(n); }
         }
         for n in new_ns {
             if self.cells[n as usize] & GEN_VISITED == 0 && self.cells[n as usize] & GEN_FRONTIER == 0 {
@@ -470,33 +440,22 @@ impl Maze {
     fn step_kruskal(&mut self) {
         if self.gen_edge_idx >= self.gen_edges.len() as u32 {
             self.gen_done = true;
-            for c in self.cells.iter_mut() {
-                *c |= GEN_VISITED;
-            }
+            for c in self.cells.iter_mut() { *c |= GEN_VISITED; }
             return;
         }
         let e = self.gen_edges[self.gen_edge_idx as usize];
         self.gen_edge_idx += 1;
         let cell = e >> 2;
         let dir = (e & 3) as u8;
-        let other = match self.neighbor(cell, dir) {
-            Some(n) => n,
-            None => return,
-        };
-
+        let other = match self.neighbor(cell, dir) { Some(n) => n, None => return };
         let a = Self::uf_find(&mut self.gen_uf, cell);
         let b = Self::uf_find(&mut self.gen_uf, other);
         if a != b {
             let ra = self.gen_uf_rank[a as usize];
             let rb = self.gen_uf_rank[b as usize];
-            if ra < rb {
-                self.gen_uf[a as usize] = b;
-            } else if ra > rb {
-                self.gen_uf[b as usize] = a;
-            } else {
-                self.gen_uf[b as usize] = a;
-                self.gen_uf_rank[a as usize] = ra + 1;
-            }
+            if ra < rb { self.gen_uf[a as usize] = b; }
+            else if ra > rb { self.gen_uf[b as usize] = a; }
+            else { self.gen_uf[b as usize] = a; self.gen_uf_rank[a as usize] = ra + 1; }
             self.remove_wall_between(cell, other);
             self.cells[cell as usize] |= GEN_VISITED;
             self.cells[other as usize] |= GEN_VISITED;
@@ -506,9 +465,7 @@ impl Maze {
     fn step_wilson(&mut self) {
         if self.gen_remaining.is_empty() {
             self.gen_done = true;
-            for c in self.cells.iter_mut() {
-                *c |= GEN_VISITED;
-            }
+            for c in self.cells.iter_mut() { *c |= GEN_VISITED; }
             return;
         }
         if self.gen_path.is_empty() {
@@ -537,21 +494,13 @@ impl Maze {
         }
         let mut open = Vec::with_capacity(4);
         for d in 0..4u8 {
-            if let Some(n) = self.neighbor(cur, d) {
-                open.push(n);
-            }
+            if let Some(n) = self.neighbor(cur, d) { open.push(n); }
         }
-        if open.is_empty() {
-            self.gen_path.pop();
-            return;
-        }
+        if open.is_empty() { self.gen_path.pop(); return; }
         let next = open[self.rng.range(open.len() as u32) as usize];
         let mut loop_pos: Option<usize> = None;
         for k in 0..self.gen_path.len() {
-            if self.gen_path[k] == next {
-                loop_pos = Some(k);
-                break;
-            }
+            if self.gen_path[k] == next { loop_pos = Some(k); break; }
         }
         if let Some(p) = loop_pos {
             for k in (p + 1)..self.gen_path.len() {
@@ -568,16 +517,12 @@ impl Maze {
 
     fn step_binary(&mut self) {
         let total = self.rows * self.cols;
-        if self.gen_cursor >= total {
-            self.gen_done = true;
-            return;
-        }
+        if self.gen_cursor >= total { self.gen_done = true; return; }
         let i = self.gen_cursor;
         self.gen_cursor += 1;
         let x = x_of(i, self.cols);
         let y = y_of(i, self.cols);
         self.cells[i as usize] |= GEN_VISITED;
-
         let can_n = y > 0;
         let can_w = x > 0;
         if !can_n && !can_w { return; }
@@ -603,9 +548,7 @@ impl Maze {
     }
 
     pub fn start_solve(&mut self, kind: u8) {
-        for s in self.solve.iter_mut() {
-            *s = 0;
-        }
+        for s in self.solve.iter_mut() { *s = 0; }
         self.clear_gen_markers();
         self.solve_kind = kind;
         self.solve_done = false;
@@ -617,6 +560,7 @@ impl Maze {
         self.solve_wall_path.clear();
         self.solve_wall_dir = 0;
         self.solve_steps = 0;
+        self.solve_deadend_queue.clear();
 
         for i in 0..self.solve_dist.len() {
             self.solve_dist[i] = u32::MAX;
@@ -645,6 +589,20 @@ impl Maze {
                 self.solve_tremaux.push(self.start);
                 self.solve[self.start as usize] |= SOLVE_VISITED;
             }
+            SOLVE_ASTAR_DEADEND => {
+                self.solve_dist[self.start as usize] = 0;
+                let h = self.heuristic(self.start, self.goal);
+                self.heap_push(h, self.start);
+                self.solve[self.start as usize] |= SOLVE_VISITED;
+
+                let total = self.rows * self.cols;
+                for i in 0..total {
+                    if i == self.start || i == self.goal { continue; }
+                    if self.live_open_count(i) <= 1 {
+                        self.solve_deadend_queue.push(i);
+                    }
+                }
+            }
             _ => self.solve_done = true,
         }
     }
@@ -659,6 +617,7 @@ impl Maze {
                 SOLVE_DEADEND => self.step_deadend(),
                 SOLVE_FLOOD => self.step_flood(),
                 SOLVE_TREMAUX => self.step_tremaux(),
+                SOLVE_ASTAR_DEADEND => self.step_astar_deadend(),
                 _ => self.solve_done = true,
             }
         }
@@ -735,6 +694,60 @@ impl Maze {
         let g = self.solve_dist[cell as usize];
         if g == u32::MAX { return; }
         if g + self.heuristic(cell, self.goal) != f { return; }
+        if cell == self.goal {
+            self.reconstruct_path();
+            self.solve_done = true;
+            return;
+        }
+        self.solve[cell as usize] |= SOLVE_CLOSED;
+        let neighbors = self.open_neighbors(cell);
+        for n in neighbors {
+            if self.solve[n as usize] & SOLVE_CLOSED != 0 { continue; }
+            let ng = g + 1;
+            if ng < self.solve_dist[n as usize] {
+                self.solve_dist[n as usize] = ng;
+                self.solve_parent[n as usize] = cell as i32;
+                self.solve[n as usize] |= SOLVE_VISITED;
+                let nf = ng + self.heuristic(n, self.goal);
+                self.heap_push(nf, n);
+            }
+        }
+    }
+
+    fn step_astar_deadend(&mut self) {
+        if !self.solve_deadend_queue.is_empty() {
+            let cell = self.solve_deadend_queue.pop().unwrap();
+            if self.solve[cell as usize] & SOLVE_DEAD == 0
+                && cell != self.start
+                && cell != self.goal
+            {
+                self.solve[cell as usize] |= SOLVE_DEAD;
+                let neighbors = self.open_neighbors(cell);
+                for n in neighbors {
+                    if n == self.start || n == self.goal { continue; }
+                    if self.solve[n as usize] & SOLVE_DEAD != 0 { continue; }
+                    if self.live_open_count(n) <= 1 {
+                        self.solve_deadend_queue.push(n);
+                    }
+                }
+            }
+        }
+
+        if self.goal == self.start {
+            self.reconstruct_path();
+            self.solve_done = true;
+            return;
+        }
+
+        let entry = match self.heap_pop() {
+            Some(e) => e,
+            None => { self.solve_done = true; return; }
+        };
+        let (f, cell) = entry;
+        if self.solve[cell as usize] & SOLVE_DEAD != 0 { return; }
+        let g = self.solve_dist[cell as usize];
+        if g == u32::MAX { return; }
+        if g + self.heuristic(cell, self.goal) != f { return; }
 
         if cell == self.goal {
             self.reconstruct_path();
@@ -747,6 +760,7 @@ impl Maze {
         let neighbors = self.open_neighbors(cell);
         for n in neighbors {
             if self.solve[n as usize] & SOLVE_CLOSED != 0 { continue; }
+            if self.solve[n as usize] & SOLVE_DEAD != 0 { continue; }
             let ng = g + 1;
             if ng < self.solve_dist[n as usize] {
                 self.solve_dist[n as usize] = ng;
@@ -769,19 +783,14 @@ impl Maze {
 
     fn step_wall(&mut self) {
         let max_steps = self.rows * self.cols * 40;
-        if self.solve_steps > max_steps {
-            self.solve_done = true;
-            return;
-        }
+        if self.solve_steps > max_steps { self.solve_done = true; return; }
         let cur = match self.solve_wall_path.last() {
             Some(&c) => c,
             None => { self.solve_done = true; return; }
         };
         if cur == self.goal {
             let path = self.solve_wall_path.clone();
-            for c in path {
-                self.solve[c as usize] |= SOLVE_PATH;
-            }
+            for c in path { self.solve[c as usize] |= SOLVE_PATH; }
             self.solve_done = true;
             return;
         }
@@ -790,15 +799,12 @@ impl Maze {
         let left = (dir + 3) % 4;
         let back = (dir + 2) % 4;
         let next_dir;
-        if self.can_move_dir(cur, right) {
-            next_dir = right;
-        } else if !self.can_move_dir(cur, dir) {
+        if self.can_move_dir(cur, right) { next_dir = right; }
+        else if !self.can_move_dir(cur, dir) {
             if self.can_move_dir(cur, left) { next_dir = left; }
             else if self.can_move_dir(cur, back) { next_dir = back; }
             else { self.solve_done = true; return; }
-        } else {
-            next_dir = dir;
-        }
+        } else { next_dir = dir; }
         self.solve_wall_dir = next_dir;
         let next = self.move_dir(cur, next_dir);
         self.solve_wall_path.push(next);
@@ -811,9 +817,7 @@ impl Maze {
         for d in 0..4u8 {
             if !self.has_wall(cell, d) {
                 if let Some(nn) = self.neighbor(cell, d) {
-                    if self.solve[nn as usize] & SOLVE_DEAD == 0 {
-                        n += 1;
-                    }
+                    if self.solve[nn as usize] & SOLVE_DEAD == 0 { n += 1; }
                 }
             }
         }
@@ -842,10 +846,7 @@ impl Maze {
     }
 
     fn step_flood(&mut self) {
-        if self.solve_qhead >= self.solve_queue.len() as u32 {
-            self.solve_done = true;
-            return;
-        }
+        if self.solve_qhead >= self.solve_queue.len() as u32 { self.solve_done = true; return; }
         let cur = self.solve_queue[self.solve_qhead as usize];
         self.solve_qhead += 1;
         self.solve[cur as usize] |= SOLVE_VISITED;
@@ -864,10 +865,7 @@ impl Maze {
     }
 
     fn step_tremaux(&mut self) {
-        if self.solve_tremaux.is_empty() {
-            self.solve_done = true;
-            return;
-        }
+        if self.solve_tremaux.is_empty() { self.solve_done = true; return; }
         let cur = *self.solve_tremaux.last().unwrap();
         if cur == self.goal {
             self.reconstruct_path();
@@ -877,14 +875,9 @@ impl Maze {
         let mut open = Vec::new();
         let neighbors = self.open_neighbors(cur);
         for n in neighbors {
-            if self.solve[n as usize] & SOLVE_VISITED == 0 {
-                open.push(n);
-            }
+            if self.solve[n as usize] & SOLVE_VISITED == 0 { open.push(n); }
         }
-        if open.is_empty() {
-            self.solve_tremaux.pop();
-            return;
-        }
+        if open.is_empty() { self.solve_tremaux.pop(); return; }
         let next = open[0];
         self.solve[next as usize] |= SOLVE_VISITED;
         self.solve_parent[next as usize] = cur as i32;
@@ -910,9 +903,7 @@ impl Maze {
         out.extend_from_slice(&self.cols.to_le_bytes());
         out.extend_from_slice(&self.start.to_le_bytes());
         out.extend_from_slice(&self.goal.to_le_bytes());
-        for c in &self.cells {
-            out.push(c & WALL_ALL);
-        }
+        for c in &self.cells { out.push(c & WALL_ALL); }
         out
     }
 
@@ -925,17 +916,12 @@ impl Maze {
         if rows < 1 || rows > 1000 || cols < 1 || cols > 1000 { return false; }
         let n = (rows * cols) as usize;
         if data.len() != 16 + n { return false; }
-
         self.set_size(rows, cols);
-        for i in 0..n {
-            self.cells[i] = data[16 + i] & WALL_ALL;
-        }
+        for i in 0..n { self.cells[i] = data[16 + i] & WALL_ALL; }
         self.start = start.min(rows * cols - 1);
         self.goal = goal.min(rows * cols - 1);
         self.clear_gen_markers();
-        for s in self.solve.iter_mut() {
-            *s = 0;
-        }
+        for s in self.solve.iter_mut() { *s = 0; }
         true
     }
 }
