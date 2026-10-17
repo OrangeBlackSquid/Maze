@@ -151,7 +151,7 @@ function updateLayout() {
 
 function colorFor(c, s) {
   if (s & 0x08) return '#5ecf7a';
-  if (s & 0x10) return '#3b82f6';
+  if (s & 0x10) return '#0ea5e9';
   if (s & 0x02) return '#fcc02a';
   if (s & 0x04) return '#1e40af';
   if (s & 0x01) return '#3b82f6';
